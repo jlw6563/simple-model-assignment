@@ -1,15 +1,14 @@
 // pull in our models. This will automatically load the index.js from that folder
 const models = require('../models');
 
-// get the Cat model
-const { Cat } = models;
+const { Cat, Dog } = models;
 
 // Function to handle rendering the index page.
 const hostIndex = async (req, res) => {
-  //Start with the name as unknown
+  // Start with the name as unknown
   let name = 'unknown';
 
-  try{
+  try {
     /* Cat.findOne() will find a cat that matches the query given to it as the first parameter.
        In this case, we give it an empty object so it will match against any object it finds.
        The second parameter is essentially a filter for the values we want. This works similarly
@@ -19,16 +18,16 @@ const hostIndex = async (req, res) => {
        in descending order (so that more recent things are "on the top"). Since we are only
        finding one, this query will either find the most recent cat if it exists, or nothing.
     */
-    const doc = await Cat.findOne({}, {}, { 
-      sort: {'createdDate': 'descending'}
+    const doc = await Cat.findOne({}, {}, {
+      sort: { createdDate: 'descending' },
     }).lean().exec();
 
-    //If we did get a cat back, store it's name in the name variable.
-    if(doc) {
+    // If we did get a cat back, store it's name in the name variable.
+    if (doc) {
       name = doc.name;
     }
   } catch (err) {
-    //Just log out the error for our records.
+    // Just log out the error for our records.
     console.log(err);
   }
 
@@ -100,9 +99,55 @@ const hostPage3 = (req, res) => {
   res.render('page3');
 };
 
+const hostPage4 = async (req, res) => {
+  /* Remember that our database is an entirely separate server from our node
+     code. That means all interactions with it are async, and just because our
+     server is up doesn't mean our database is. Therefore, any time we
+     interact with it, we need to account for scenarios where it is not working.
+     That is why the code below is wrapped in a try/catch statement.
+  */
+  try {
+    /* We want to find all the cats in the Cat database. To do this, we need
+       to make a "query" or a search. Queries in Mongoose are "thenable" which
+       means they work like promises. Since they work like promises, we can also
+       use await/async with them.
+
+       The result of any query will either throw an error, or return zero, one, or
+       multiple "documents". Documents are what our database stores. It is often
+       abbreviated to "doc" or "docs" (one or multiple).
+
+       .find() is a function in all Mongoose models (like our Cat model). It takes
+       in an object as a parameter that defines the search. In this case, we want
+       to find every cat, so we give it an empty object because that will not filter
+       out any cats.
+
+       .lean() is a modifier for the find query. Instead of returning entire mongoose
+       documents, .lean() will only return the JS Objects being stored. Try printing
+       out docs with and without .lean() to see the difference.
+
+       .exec() executes the chain of operations. It is not strictly necessary and
+       can be removed. However, mongoose gives better error messages if we use it.
+    */
+    const docs = await Dog.find({}).lean().exec();
+
+    // Once we get back the docs array, we can send it to page1.
+    return res.render('page4', { dogs: docs });
+  } catch (err) {
+    /* If our database returns an error, or is unresponsive, we will print that error to
+       our console for us to see. We will also send back an error message to the client.
+
+       We don't want to send back the err from mongoose, as that would be unsafe. You
+       do not want people to see actual error messages from your server or database, or else
+       they can exploit them to attack your server.
+    */
+    console.log(err);
+    return res.status(500).json({ error: 'failed to find dogs' });
+  }
+};
+
 // Get name will return the name of the last added cat.
 const getName = async (req, res) => {
-  try{
+  try {
     /* Here we are trying to do the exact same thing we did in host index up
        above. We want to find the most recently added cat. The only difference
        here is that we are using the query .sort() function rather than passing
@@ -110,21 +155,21 @@ const getName = async (req, res) => {
        functionally the same. We are just seeing that it can be written in
        more than one way.
     */
-    const doc = await Cat.findOne({}).sort({'createdDate': 'descending'}).lean().exec();
+    const doc = await Cat.findOne({}).sort({ createdDate: 'descending' }).lean().exec();
 
-    //If we did get a cat back, store it's name in the name variable.
-    if(doc) {
-      return res.json({name: doc.name});
+    // If we did get a cat back, store it's name in the name variable.
+    if (doc) {
+      return res.json({ name: doc.name });
     }
-    return res.status(404).json({error: 'No cat found'});
+    return res.status(404).json({ error: 'No cat found' });
   } catch (err) {
     /* If an error occurs, it means something went wrong with the database. We will
        give the user a 500 internal server error status code and an error message.
     */
     console.log(err);
-    return res.status(500).json({error: 'Something went wrong contacting the database'});
+    return res.status(500).json({ error: 'Something went wrong contacting the database' });
   }
-}
+};
 
 // Function to create a new cat in the database
 const setName = async (req, res) => {
@@ -252,15 +297,15 @@ const updateLast = (req, res) => {
      Finally, findOneAndUpdate would just update the most recent cat it finds that
      matches the query (which could be any cat). So we also need to tell Mongoose to
      sort all the cats in descending order by created date so that we update the
-     most recently added one. The returnDocument key with the 'after' value tells 
+     most recently added one. The returnDocument key with the 'after' value tells
      mongoose to give us back the version of the document AFTER the changes. Otherwise
      it will default to 'before' which gives us the document before the update.
 
      We can use async/await for this, or just use standard promise .then().catch() syntax.
   */
-  const updatePromise = Cat.findOneAndUpdate({}, {$inc: {'bedsOwned': 1}}, {
-    returnDocument: 'after', //Populates doc in the .then() with the version after update
-    sort: {'createdDate': 'descending'}
+  const updatePromise = Cat.findOneAndUpdate({}, { $inc: { bedsOwned: 1 } }, {
+    returnDocument: 'after', // Populates doc in the .then() with the version after update
+    sort: { createdDate: 'descending' },
   }).lean().exec();
 
   // If we successfully save/update them in the database, send back the cat's info.
@@ -273,6 +318,53 @@ const updateLast = (req, res) => {
   updatePromise.catch((err) => {
     console.log(err);
     return res.status(500).json({ error: 'Something went wrong' });
+  });
+};
+
+// Function to create a new cat in the database
+const createDog = async (req, res) => {
+  if (!req.body.name || !req.body.breed || !req.body.age) {
+    // If they are missing data, send back an error.
+    return res.status(400).json({ error: 'name, breed and age are all required' });
+  }
+
+  const dogData = {
+    name: req.body.name,
+    breed: req.body.breed,
+    age: req.body.age,
+  };
+  const newDog = new Dog(dogData);
+  try {
+    await newDog.save();
+    return res.status(201).json({
+      name: newDog.name,
+      breed: newDog.breed,
+      age: newDog.age,
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ error: 'failed to create dog' });
+  }
+};
+
+// Need to work on this
+const increaseAge = async (req, res) => {
+  const updatePromise = Dog.findOneAndUpdate({ name: req.body.name }, { $inc: { age: 1 } }, {
+    returnDocument: 'after', // Populates doc in the .then() with the version after update
+  }).lean().exec();
+
+  // If we successfully save/update them in the database, send back the cat's info.
+  updatePromise.then((doc) => {
+    if (!doc) return res.status(404).json({ error: 'Name not found' });
+    return res.json({
+      name: doc.name,
+      breed: doc.breed,
+      beds: doc.age,
+    });
+  });
+  updatePromise.catch((err) => {
+    console.log(err);
+    return res.status(500).json({ error: 'failed to update dog' });
   });
 };
 
@@ -289,9 +381,12 @@ module.exports = {
   page1: hostPage1,
   page2: hostPage2,
   page3: hostPage3,
+  page4: hostPage4,
   getName,
   setName,
   updateLast,
   searchName,
+  createDog,
+  increaseAge,
   notFound,
 };
